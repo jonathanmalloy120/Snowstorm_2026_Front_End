@@ -72,8 +72,12 @@ DATABASE_URL = os.getenv(
 
 # Tracker activity-tracking config. Engaged seconds are derived at READ time as
 #   (pings - 1) * HEARTBEAT_DELAY_SECONDS + MINIMUM_VISIT_LENGTH_SECONDS
-# These MUST match enableActivityTracking() in the publisher repo. The browser
-# tracker has NO defaults for these: if either is missing or non-integer it
-# silently disables activity tracking entirely.
-HEARTBEAT_DELAY_SECONDS = int(os.getenv("HEARTBEAT_DELAY_SECONDS", "30"))
+#
+# These MUST match enableActivityTracking() in the publisher's lib/snowplow.ts,
+# currently { minimumVisitLength: 10, heartbeatDelay: 10 }. Note that the
+# conventional Snowplow example "30/10" means minimumVisitLength=30 and
+# heartbeatDelay=10 -- reading it as heartbeat-first overstates engaged time by
+# 3x. The browser tracker has NO defaults for these: if either is missing or
+# non-integer it silently disables activity tracking entirely.
+HEARTBEAT_DELAY_SECONDS = int(os.getenv("HEARTBEAT_DELAY_SECONDS", "10"))
 MINIMUM_VISIT_LENGTH_SECONDS = int(os.getenv("MINIMUM_VISIT_LENGTH_SECONDS", "10"))
