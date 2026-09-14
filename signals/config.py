@@ -59,5 +59,5 @@ DATABASE_URL = os.getenv(
 # Tracker activity-tracking config. Engaged seconds are derived at READ time as
 #   (pings - 1) * HEARTBEAT_DELAY_SECONDS + MINIMUM_VISIT_LENGTH_SECONDS
 # These MUST match enableActivityTracking() in the publisher repo.
-HEARTBEAT_DELAY_SECONDS = int(os.getenv("HEARTBEAT_DELAY_SECONDS", "5"))
-MINIMUM_VISIT_LENGTH_SECONDS = int(os.getenv("MINIMUM_VISIT_LENGTH_SECONDS", "1"))
+HEARTBEAT_DELAY_SECONDS = int(os.getenv("HEARTBEAT_DELAY_SECONDS", "30"))
+MINIMUM_VISIT_LENGTH_SECONDS = int(os.getenv("MINIMUM_VISIT_LENGTH_SECONDS", "10"))
