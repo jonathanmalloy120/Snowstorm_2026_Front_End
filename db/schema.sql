@@ -48,6 +48,7 @@ CREATE TABLE site_snapshots (
     country_counts_6h     JSONB,
     social_counts_1h      JSONB,
     social_counts_6h      JSONB,
+    category_counts_1h    JSONB,
     share_platforms_1h    JSONB,
 
     PRIMARY KEY (app_id, snapshot_ts)
@@ -64,11 +65,13 @@ CREATE TABLE article_snapshots (
     -- the catalog we found it in.
     app_id                TEXT        NOT NULL,
 
-    -- The article entity carries only title and author; the URL is recovered
-    -- from the page_url atomic field.
+    -- From the article entity (2-0-0); the URL is recovered from the page_url
+    -- atomic field, since the entity carries no slug or URL.
     title                 TEXT,
     author                TEXT,
     page_url              TEXT,
+    category              TEXT,
+    published_at          TIMESTAMPTZ,
 
     views_5m              NUMERIC,
     views_1h              NUMERIC,

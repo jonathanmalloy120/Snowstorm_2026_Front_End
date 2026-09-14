@@ -52,11 +52,30 @@ def _stop(signum, _frame):
     _running = False
 
 
+# published_at arrives as an ISO date-time string from the entity; the column
+# is timestamptz so that "newest articles" sorts correctly.
+TIMESTAMP_ATTRS = {"published_at"}
+
+
+def _parse_ts(value: Any) -> datetime | None:
+    if not value:
+        return None
+    if isinstance(value, datetime):
+        return value
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        log.warning("could not parse timestamp %r", value)
+        return None
+
+
 def _encode(attr: str, value: Any) -> Any:
     if value is None:
         return None
     if attr in JSON_ATTRS:
         return json.dumps(value)
+    if attr in TIMESTAMP_ATTRS:
+        return _parse_ts(value)
     return value
 
 

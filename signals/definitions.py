@@ -6,9 +6,11 @@ Two stream attribute groups:
   article_metrics keyed on article_id  -- per-article metrics and metadata
 
 Schemas (Console DEV, 1-0-0):
-  com.snowplowanalytics/article             entity: title, author, article_id
-  com.snowplowanalytics/article_view        event:  id, title, author
-  com.snowplowanalytics/article_interaction event:  interaction_type, social_platform
+  com.snowplowanalytics/article       2-0-0 entity: title, author, article_id,
+                                            category, published_at
+  com.snowplowanalytics/article_view  1-0-0 event:  id, title, author
+  com.snowplowanalytics/article_interaction 1-0-0 event: interaction_type,
+                                            social_platform
 
 IMPORTANT: only the article ENTITY carries article_id, so it must be attached
 to page_view, page_ping and article_interaction (addGlobalContexts) or the
@@ -189,6 +191,12 @@ for _p in (ONE_HOUR, SIX_HOURS):
 
 _site += [
     Attribute(
+        name="category_counts_1h", type="dict", aggregation="category_count",
+        property=_article_prop("category"), events=[_article_view_event()],
+        period=ONE_HOUR,
+        description="Article views by category (section) in the trailing hour.",
+    ),
+    Attribute(
         name="share_platforms_1h", type="dict", aggregation="category_count",
         property=_interaction_prop(config.SOCIAL_PLATFORM_PATH),
         events=[_interaction_event()],
@@ -229,6 +237,16 @@ _article: list[Attribute] = [
         name="page_url", type="string", aggregation="last",
         property=AtomicProperty(name="page_url"), events=[_article_view_event()],
         description="Most recent URL this article was served at.",
+    ),
+    Attribute(
+        name="category", type="string", aggregation="last",
+        property=_article_prop("category"), events=[_article_view_event()],
+        description="Most recent category (section) seen for this article.",
+    ),
+    Attribute(
+        name="published_at", type="string", aggregation="last",
+        property=_article_prop("published_at"), events=[_article_view_event()],
+        description="Publication timestamp (date-time) carried on the entity.",
     ),
 ]
 

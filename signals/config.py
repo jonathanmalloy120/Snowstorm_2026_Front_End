@@ -11,10 +11,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # ---------------------------------------------------------------------------
-# Iglu coordinates -- confirmed against Console (DEV, 1-0-0) on 2026-09-14.
+# Iglu coordinates -- confirmed against Console DEV on 2026-09-14.
 #
-#   iglu:com.snowplowanalytics/article/jsonschema/1-0-0             (entity)
-#       title, author, article_id
+#   iglu:com.snowplowanalytics/article/jsonschema/2-0-0             (entity)
+#       title, author, article_id, category, published_at
 #   iglu:com.snowplowanalytics/article_view/jsonschema/1-0-0        (event)
 #       id, title, author
 #   iglu:com.snowplowanalytics/article_interaction/jsonschema/1-0-0 (event)
@@ -26,7 +26,7 @@ load_dotenv()
 # ---------------------------------------------------------------------------
 ARTICLE_ENTITY_VENDOR = os.getenv("ARTICLE_ENTITY_VENDOR", "com.snowplowanalytics")
 ARTICLE_ENTITY_NAME = os.getenv("ARTICLE_ENTITY_NAME", "article")
-ARTICLE_ENTITY_MAJOR_VERSION = int(os.getenv("ARTICLE_ENTITY_MAJOR_VERSION", "1"))
+ARTICLE_ENTITY_MAJOR_VERSION = int(os.getenv("ARTICLE_ENTITY_MAJOR_VERSION", "2"))
 
 # Purpose-built article view event: fires once per article, unlike page_view
 # which also fires on the homepage and category pages.
