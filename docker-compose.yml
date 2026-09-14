@@ -1,0 +1,22 @@
+services:
+  db:
+    image: postgres:16
+    container_name: snowstorm-db
+    environment:
+      POSTGRES_USER: snowstorm
+      POSTGRES_PASSWORD: snowstorm
+      POSTGRES_DB: snowstorm
+    ports:
+      - "5433:5432"
+    volumes:
+      - snowstorm-pgdata:/var/lib/postgresql/data
+      # applied automatically on first boot of an empty volume
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U snowstorm -d snowstorm"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  snowstorm-pgdata:

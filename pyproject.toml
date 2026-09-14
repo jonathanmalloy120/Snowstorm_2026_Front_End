@@ -1,0 +1,14 @@
+[project]
+name = "snowstorm-2026"
+version = "0.1.0"
+description = "Signals attribute definitions, snapshot poller, and editorial dashboard"
+requires-python = ">=3.11"
+dependencies = [
+    "snowplow-signals>=0.4.8",
+    "httpx>=0.27",
+    "psycopg[binary]>=3.2",
+    "python-dotenv>=1.0",
+]
+
+[tool.uv]
+package = false
