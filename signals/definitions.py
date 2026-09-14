@@ -299,3 +299,9 @@ article_metrics = StreamAttributeGroup(
 
 
 ALL_GROUPS = [site_metrics, article_metrics]
+ALL_KEYS = [app_id_key, article_id_key]
+
+# Custom attribute keys must exist before the groups that reference them.
+# RegistryClient.create_or_update() publishes keys first, but only for the
+# objects it is handed -- so keys must be in this list, not just the groups.
+ALL_OBJECTS = ALL_KEYS + ALL_GROUPS

@@ -13,13 +13,16 @@ import sys
 from snowplow_signals import Signals
 
 from signals import config
-from signals.definitions import ALL_GROUPS
+from signals.definitions import ALL_GROUPS, ALL_KEYS, ALL_OBJECTS
 
 
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true", help="print definitions, publish nothing")
     args = ap.parse_args()
+
+    for key in ALL_KEYS:
+        print(f"attribute key: {key.name}")
 
     for group in ALL_GROUPS:
         print(f"\n{group.name} v{group.version}  key={group.attribute_key.name}")
@@ -44,8 +47,8 @@ def main() -> None:
         api_key_id=config.SIGNALS_API_KEY_ID,
         org_id=config.SIGNALS_ORG_ID,
     )
-    signals.publish(ALL_GROUPS)
-    print(f"\npublished {len(ALL_GROUPS)} attribute groups")
+    signals.publish(ALL_OBJECTS)
+    print(f"\npublished {len(ALL_KEYS)} attribute keys + {len(ALL_GROUPS)} attribute groups")
 
 
 if __name__ == "__main__":
