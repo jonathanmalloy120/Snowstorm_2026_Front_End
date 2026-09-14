@@ -60,18 +60,6 @@ def _encode(attr: str, value: Any) -> Any:
     return value
 
 
-def _parse_ts(value: Any) -> datetime | None:
-    if not value:
-        return None
-    if isinstance(value, datetime):
-        return value
-    try:
-        return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
-    except ValueError:
-        log.warning("could not parse published_at=%r", value)
-        return None
-
-
 def verify_schema(conn: psycopg.Connection) -> None:
     """Fail fast if the DB columns and the Signals definitions have drifted."""
     problems = []
@@ -123,8 +111,7 @@ def write_article_rows(conn, app_id: str, ts: datetime, rows: dict[str, dict]) -
     for article_id, values in rows.items():
         record: list[Any] = [article_id, app_id, ts]
         for a in ARTICLE_ATTRS:
-            v = values.get(a)
-            record.append(_parse_ts(v) if a == "published_at" else _encode(a, v))
+            record.append(_encode(a, values.get(a)))
         payload.append(record)
     if not payload:
         return
