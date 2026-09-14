@@ -52,12 +52,9 @@ def _stop(signum, _frame):
     _running = False
 
 
-def _encode(attr: str, value: Any) -> Any:
-    if value is None:
-        return None
-    if attr in JSON_ATTRS:
-        return json.dumps(value)
-    return value
+# published_at arrives as an ISO date-time string from the entity; the column
+# is timestamptz so that "newest articles" sorts correctly.
+TIMESTAMP_ATTRS = {"published_at"}
 
 
 def _parse_ts(value: Any) -> datetime | None:
@@ -68,8 +65,18 @@ def _parse_ts(value: Any) -> datetime | None:
     try:
         return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
     except ValueError:
-        log.warning("could not parse published_at=%r", value)
+        log.warning("could not parse timestamp %r", value)
         return None
+
+
+def _encode(attr: str, value: Any) -> Any:
+    if value is None:
+        return None
+    if attr in JSON_ATTRS:
+        return json.dumps(value)
+    if attr in TIMESTAMP_ATTRS:
+        return _parse_ts(value)
+    return value
 
 
 def verify_schema(conn: psycopg.Connection) -> None:
@@ -123,8 +130,7 @@ def write_article_rows(conn, app_id: str, ts: datetime, rows: dict[str, dict]) -
     for article_id, values in rows.items():
         record: list[Any] = [article_id, app_id, ts]
         for a in ARTICLE_ATTRS:
-            v = values.get(a)
-            record.append(_parse_ts(v) if a == "published_at" else _encode(a, v))
+            record.append(_encode(a, values.get(a)))
         payload.append(record)
     if not payload:
         return

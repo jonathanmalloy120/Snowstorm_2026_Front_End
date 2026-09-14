@@ -56,7 +56,7 @@ uv run python -m poller.run
 
 ## Known gaps
 
-* The Iglu coordinates in `.env.example` are **placeholders** inferred from the
+* Iglu coordinates are confirmed against Console DEV 1-0-0. The schemas are on
   publisher's `types/analytics.ts`. Confirm them before publishing — a wrong
   vendor yields attributes that populate with nothing and report no error.
 * The publisher does not yet call `enableActivityTracking` (no page pings, so no
