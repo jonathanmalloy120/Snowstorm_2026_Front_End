@@ -38,8 +38,11 @@ from snowplow_signals import (
     EventProperty,
     PagePing,
     PageView,
+    Service,
     StreamAttributeGroup,
 )
+
+from snowplow_signals.models.model import VersionedLinkAttributeGroup
 
 from signals import config
 
@@ -298,10 +301,42 @@ article_metrics = StreamAttributeGroup(
 )
 
 
+# ---------------------------------------------------------------------------
+# Services -- the serving bundles the dashboard reads through.
+#
+# A service can only reference groups that share ONE attribute key:
+#   "Service can only reference attribute groups with the same attribute key."
+# site_metrics is keyed on app_id and article_metrics on article_id, so they
+# cannot share a service. Hence one per key.
+#
+# Groups are referenced by versioned LINK, not by value: a published group is
+# immutable ("Cannot update published attribute group"), so embedding the full
+# object would make every service publish attempt to rewrite it.
+# ---------------------------------------------------------------------------
+editorial_site = Service(
+    name="editorial_site",
+    owner=config.OWNER,
+    attribute_groups=[
+        VersionedLinkAttributeGroup(name=site_metrics.name, version=site_metrics.version)
+    ],
+    description="Site-wide editorial metrics, served by app_id.",
+)
+
+editorial_articles = Service(
+    name="editorial_articles",
+    owner=config.OWNER,
+    attribute_groups=[
+        VersionedLinkAttributeGroup(name=article_metrics.name, version=article_metrics.version)
+    ],
+    description="Per-article editorial metrics, served by article_id.",
+)
+
+
 ALL_GROUPS = [site_metrics, article_metrics]
 ALL_KEYS = [app_id_key, article_id_key]
+ALL_SERVICES = [editorial_site, editorial_articles]
 
 # Custom attribute keys must exist before the groups that reference them.
 # RegistryClient.create_or_update() publishes keys first, but only for the
 # objects it is handed -- so keys must be in this list, not just the groups.
-ALL_OBJECTS = ALL_KEYS + ALL_GROUPS
+ALL_OBJECTS = ALL_KEYS + ALL_GROUPS + ALL_SERVICES

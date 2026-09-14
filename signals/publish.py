@@ -13,12 +13,19 @@ import sys
 from snowplow_signals import Signals
 
 from signals import config
-from signals.definitions import ALL_GROUPS, ALL_KEYS, ALL_OBJECTS
+from signals.definitions import ALL_GROUPS, ALL_KEYS, ALL_OBJECTS, ALL_SERVICES
 
 
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true", help="print definitions, publish nothing")
+    ap.add_argument(
+        "--only", choices=["all", "keys", "groups", "services"], default="all",
+        help="publish a subset. Published groups are IMMUTABLE, so re-sending "
+             "them fails with 'Cannot update published attribute group' -- use "
+             "--only services to add or change a service without touching them. "
+             "To change a published group's attributes, bump its version.",
+    )
     args = ap.parse_args()
 
     for key in ALL_KEYS:
@@ -29,6 +36,10 @@ def main() -> None:
         for a in group.attributes:
             window = f"period={a.period}" if a.period else "lifetime"
             print(f"   {a.name:<22} {a.aggregation:<22} {window}")
+
+    for svc in ALL_SERVICES:
+        names = ", ".join(g.name for g in (svc.attribute_groups or []))
+        print(f"\nservice: {svc.name}  groups=[{names}]")
 
     if args.dry_run:
         print("\n[dry run] nothing published")
@@ -47,8 +58,14 @@ def main() -> None:
         api_key_id=config.SIGNALS_API_KEY_ID,
         org_id=config.SIGNALS_ORG_ID,
     )
-    signals.publish(ALL_OBJECTS)
-    print(f"\npublished {len(ALL_KEYS)} attribute keys + {len(ALL_GROUPS)} attribute groups")
+    targets = {
+        "all": ALL_OBJECTS,
+        "keys": ALL_KEYS,
+        "groups": ALL_GROUPS,
+        "services": ALL_SERVICES,
+    }[args.only]
+    signals.publish(targets)
+    print(f"\npublished {len(targets)} object(s) [--only {args.only}]")
 
 
 if __name__ == "__main__":

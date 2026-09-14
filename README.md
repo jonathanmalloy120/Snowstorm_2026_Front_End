@@ -30,6 +30,21 @@ Signals has no way to enumerate keys, so `article_ids` on the site group *is*
 the enumeration: the poller reads it, then batch-reads per-article metrics for
 exactly those IDs. No CMS integration anywhere.
 
+## Services
+
+`editorial_site` (app_id) and `editorial_articles` (article_id). Two rather
+than one because a service can only reference groups sharing a single attribute
+key. Groups are referenced by versioned link, since a published group is
+immutable.
+
+## Changing a published definition
+
+A published attribute group cannot be edited -- the API returns
+`Cannot update published attribute group`. **Bump the group's `version`** and
+publish that; do not unpublish, which would reset aggregation (Signals does not
+backdate, so accumulated history is unrecoverable). `--only {keys,groups,services}`
+scopes a publish so services can change without touching live groups.
+
 ## Rules the code depends on
 
 * Rolling windows use `period=`, **never `ttl=`** — ttl is expiry-on-inactivity
