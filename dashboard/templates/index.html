@@ -35,7 +35,21 @@
   .grid{display:grid;gap:12px;margin-bottom:12px}
   .g2{grid-template-columns:1fr 1fr}
   @media (max-width:900px){.g2{grid-template-columns:1fr}}
-  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;position:relative}
+  /* Cards driven by the range switcher carry an accent rail; fixed ones don't. */
+  .card.ranged{border-left:3px solid var(--accent)}
+  .zone{margin:28px 0 12px}
+  .zone-head{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;
+             padding-bottom:10px;margin-bottom:12px;border-bottom:1px solid var(--line)}
+  .zone-title{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+  .zone-title h2{font-size:14px;margin:0;font-weight:600;letter-spacing:-.1px}
+  .zone-title .why{font-size:11px;color:var(--muted)}
+  .badge{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:600;
+         text-transform:uppercase;letter-spacing:.5px;padding:3px 8px;border-radius:20px;white-space:nowrap}
+  .badge.ranged{background:rgba(47,111,237,.13);color:var(--accent);border:1px solid rgba(47,111,237,.3)}
+  .badge.fixed{background:transparent;color:var(--muted);border:1px solid var(--line)}
+  .cardbadge{position:absolute;top:14px;right:14px}
+  .card h2{font-size:13px;margin:0 0 2px;font-weight:600;padding-right:92px}
   .card h2{font-size:13px;margin:0 0 2px;font-weight:600}
   .card p.hint{margin:0 0 10px;font-size:11px;color:var(--muted)}
   table{width:100%;border-collapse:collapse;font-size:13px}
@@ -61,11 +75,6 @@
   <header>
     <h1>The Snowstorm Herald <small>editorial analytics, powered by Snowplow Signals</small></h1>
     <div class="controls">
-      <div class="seg">
-        {% for h in window_choices %}
-          <a class="{{ 'on' if h == hours }}" href="?hours={{ h }}&app_id={{ app_id }}">{{ h }}h</a>
-        {% endfor %}
-      </div>
       {% if app_ids|length > 1 %}
       <div class="seg">
         {% for a in app_ids %}
@@ -87,13 +96,21 @@
     </span>
   </div>
 
+  <div class="zone-head">
+    <div class="zone-title">
+      <h2>Right now</h2>
+      <span class="why">current values from Signals, each at its own fixed window — not affected by the range control</span>
+    </div>
+    <span class="badge fixed">Fixed windows</span>
+  </div>
+
   <div class="tiles" id="tiles">
     <div class="tile"><div class="k">Unique visitors</div>
       <div class="v" data-k="unique_visitors_1h">{{ overview.unique_visitors_1h or 0 }}</div>
       <div class="s">trailing hour · approximate</div></div>
     <div class="tile"><div class="k">Article views</div>
       <div class="v" data-k="article_views_1h">{{ overview.article_views_1h or 0 }}</div>
-      <div class="s">trailing hour · {{ overview.article_views_6h or 0 }} in 6h</div></div>
+      <div class="s">trailing hour · {{ overview.article_views_6h or 0 }} in trailing 6h</div></div>
     <div class="tile"><div class="k">Engaged time</div>
       <div class="v" data-engaged>{{ overview.engaged_seconds_1h | duration }}</div>
       <div class="s">trailing hour · from page pings</div></div>
@@ -102,26 +119,53 @@
       <div class="s">likes, bookmarks, favourites, shares</div></div>
   </div>
 
+  <div class="zone-head">
+    <div class="zone-title">
+      <h2>Over time</h2>
+      <span class="why">history Signals can't provide — reconstructed from snapshots</span>
+    </div>
+    <div class="controls">
+      <span class="badge ranged">Last {{ hours }}h</span>
+      <div class="seg">
+        {% for h in window_choices %}
+          <a class="{{ 'on' if h == hours }}" href="?hours={{ h }}&app_id={{ app_id }}">{{ h }}h</a>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
   <div class="grid g2">
-    <div class="card">
+    <div class="card ranged">
+      <span class="badge ranged cardbadge">Last {{ hours }}h</span>
       <h2>Traffic over time</h2>
       <p class="hint">Trailing 5-minute totals, sampled every {{ poll_interval }}s. Breaks are periods the poller wasn't running.</p>
       <div id="fig-traffic"></div>
     </div>
-    <div class="card">
+    <div class="card ranged">
+      <span class="badge ranged cardbadge">Last {{ hours }}h</span>
       <h2>Engaged time over time</h2>
       <p class="hint">Derived at read time: (pings − 1) × {{ heartbeat }}s + {{ min_visit }}s.</p>
       <div id="fig-engagement"></div>
     </div>
   </div>
 
+  <div class="zone-head">
+    <div class="zone-title">
+      <h2>Breakdowns</h2>
+      <span class="why">Signals rolling windows — fixed at one hour, not affected by the range control</span>
+    </div>
+    <span class="badge fixed">Trailing hour</span>
+  </div>
+
   <div class="grid g2">
     <div class="card">
+      <span class="badge fixed cardbadge">Trailing hour</span>
       <h2>Where readers are</h2>
       <p class="hint">Article views by country, trailing hour.</p>
       <div id="fig-geo"></div>
     </div>
     <div class="card">
+      <span class="badge fixed cardbadge">Trailing hour</span>
       <h2>Sections</h2>
       <p class="hint">Article views by category, trailing hour.</p>
       <div id="fig-category"></div>
@@ -129,6 +173,7 @@
   </div>
 
   <div class="card">
+    <span class="badge fixed cardbadge">Trailing hour</span>
     <h2>Top articles</h2>
     <p class="hint">Ranked by views in the trailing hour.</p>
     <table>
@@ -163,7 +208,7 @@
 
   <footer>
     Every value is a <strong>trailing gauge</strong> over its rolling window, sampled from the Snowplow Signals Profiles Store every {{ poll_interval }}s — not a cumulative total, and never differenced.<br>
-    Signals answers <em>what is true now</em>; the Postgres snapshot layer is what makes <em>change over time</em> visible. Unique visitors are approximate (HyperLogLog, ~1% error).
+    Signals answers <em>what is true now</em>; the Postgres snapshot layer is what makes <em>change over time</em> visible. That is why only the <span class="badge ranged">Last {{ hours }}h</span> panels follow the range control — everything marked <span class="badge fixed">Trailing hour</span> is a Signals rolling window read at its own fixed period. Unique visitors are approximate (HyperLogLog, ~1% error).
   </footer>
 </div>
 
