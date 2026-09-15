@@ -9,7 +9,7 @@ editorial team needs to see change over time.
 
 from __future__ import annotations
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, abort, jsonify, redirect, render_template, request, url_for
 
 from dashboard import figures, queries
 from signals import config
@@ -73,6 +73,78 @@ def index():
         min_visit=config.MINIMUM_VISIT_LENGTH_SECONDS,
         **data,
     )
+
+
+def _article_payload(conn, app_id: str, article_id: str, hours: int) -> dict:
+    rows = queries.article_timeseries(conn, app_id, article_id, hours)
+    detail = queries.article_detail(conn, app_id, article_id)
+    return {
+        "detail": detail,
+        "coverage": queries.coverage(conn, app_id, hours),
+        "figures": {
+            "traffic": figures.article_traffic(rows),
+            "engagement": figures.article_engagement(rows),
+            "interactions": figures.article_interactions(rows),
+            "geo": figures.article_geo(detail.get("country_counts_1h") or {}),
+        },
+    }
+
+
+@app.route("/article/")
+@app.route("/article/<article_id>")
+def article(article_id: str | None = None):
+    app_id, hours = _app_id(), _hours()
+    with queries.connect() as conn:
+        options = queries.article_options(conn, app_id)
+        if not options:
+            return render_template("article.html", app_id=app_id, hours=hours,
+                                   app_ids=config.APP_IDS,
+                                   window_choices=WINDOW_CHOICES,
+                                   options=[], detail={}, coverage={},
+                                   figures={}, article_id=None,
+                                   poll_interval=config.POLL_INTERVAL_SECONDS,
+                                   heartbeat=config.HEARTBEAT_DELAY_SECONDS,
+                                   min_visit=config.MINIMUM_VISIT_LENGTH_SECONDS)
+        # No article chosen: fall through to the busiest one rather than an
+        # empty page, so the link is useful from a bookmark.
+        if article_id is None:
+            return redirect(url_for("article", article_id=options[0]["article_id"],
+                                    hours=hours, app_id=app_id))
+        if article_id not in {o["article_id"] for o in options}:
+            abort(404, "No snapshots for that article")
+
+        data = _article_payload(conn, app_id, article_id, hours)
+
+    return render_template("article.html", app_id=app_id, hours=hours,
+                           app_ids=config.APP_IDS, window_choices=WINDOW_CHOICES,
+                           options=options, article_id=article_id,
+                           poll_interval=config.POLL_INTERVAL_SECONDS,
+                           heartbeat=config.HEARTBEAT_DELAY_SECONDS,
+                           min_visit=config.MINIMUM_VISIT_LENGTH_SECONDS,
+                           **data)
+
+
+@app.route("/api/article/<article_id>")
+def api_article(article_id: str):
+    app_id, hours = _app_id(), _hours()
+    with queries.connect() as conn:
+        data = _article_payload(conn, app_id, article_id, hours)
+    d = data["detail"]
+    if not d:
+        abort(404)
+    return jsonify({
+        "detail": {**d,
+                   "snapshot_ts": d["snapshot_ts"].isoformat() if d.get("snapshot_ts") else None,
+                   "published_at": d["published_at"].isoformat() if d.get("published_at") else None,
+                   "first_seen": d["first_seen"].isoformat() if d.get("first_seen") else None,
+                   "time_since_last": float(d["time_since_last"]) if d.get("time_since_last") is not None else None},
+        "coverage": {**data["coverage"],
+                     "last_tick": data["coverage"]["last_tick"].isoformat()
+                     if data["coverage"].get("last_tick") else None},
+        "figures": data["figures"],
+        "engaged_label": duration(d.get("engaged_seconds_1h", 0)),
+        "peak_engaged_label": duration(d.get("peak_engaged_1h", 0)),
+    })
 
 
 @app.route("/api/data")

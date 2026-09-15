@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ detail.title or 'Article' }} — Editorial Analytics</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
+<style>
+  :root{
+    --bg:#f7f8fa; --card:#fff; --ink:#1b2130; --muted:#6b7482; --line:#e4e7ec;
+    --accent:#2f6fed; --support:#e8833a; --good:#1f9d5c; --warn:#d4a017; --bad:#d64545;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#0f1319; --card:#161b23; --ink:#e8ecf2; --muted:#8a94a6; --line:#242b36; }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+  .wrap{max-width:1240px;margin:0 auto;padding:24px 20px 56px}
+  a{color:var(--accent)}
+  .back{font-size:12px;color:var(--muted);text-decoration:none}
+  .back:hover{color:var(--accent)}
+  .picker{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:14px 0 18px}
+  select{background:var(--card);color:var(--ink);border:1px solid var(--line);
+         border-radius:8px;padding:7px 10px;font-size:13px;max-width:100%;min-width:280px}
+  label{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)}
+  h1{font-size:22px;margin:0;letter-spacing:-.3px;line-height:1.3}
+  .meta{font-size:12px;color:var(--muted);margin-top:6px;display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+  .tag{display:inline-block;font-size:10px;text-transform:uppercase;letter-spacing:.4px;
+       color:var(--muted);border:1px solid var(--line);border-radius:5px;padding:1px 6px}
+  .status{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--muted);margin:16px 0 18px}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--good);flex:none}
+  .dot.stale{background:var(--warn)} .dot.dead{background:var(--bad)}
+  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:8px}
+  .tile{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px}
+  .tile .k{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)}
+  .tile .v{font-size:26px;font-weight:600;letter-spacing:-.5px;margin-top:6px;font-variant-numeric:tabular-nums}
+  .tile .s{font-size:11px;color:var(--muted);margin-top:2px}
+  .grid{display:grid;gap:12px;margin-bottom:12px}
+  .g2{grid-template-columns:1fr 1fr}
+  @media (max-width:900px){.g2{grid-template-columns:1fr}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;position:relative}
+  .card.ranged{border-left:3px solid var(--accent)}
+  .card h2{font-size:13px;margin:0 0 2px;font-weight:600;padding-right:92px}
+  .card p.hint{margin:0 0 10px;font-size:11px;color:var(--muted)}
+  .zone-head{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;
+             padding-bottom:10px;margin:28px 0 12px;border-bottom:1px solid var(--line)}
+  .zone-title{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+  .zone-title h2{font-size:14px;margin:0;font-weight:600}
+  .zone-title .why{font-size:11px;color:var(--muted)}
+  .badge{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:600;
+         text-transform:uppercase;letter-spacing:.5px;padding:3px 8px;border-radius:20px;white-space:nowrap}
+  .badge.ranged{background:rgba(47,111,237,.13);color:var(--accent);border:1px solid rgba(47,111,237,.3)}
+  .badge.fixed{background:transparent;color:var(--muted);border:1px solid var(--line)}
+  .cardbadge{position:absolute;top:14px;right:14px}
+  .seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--card)}
+  .seg a{padding:5px 12px;font-size:12px;text-decoration:none;color:var(--muted)}
+  .seg a.on{background:var(--accent);color:#fff}
+  .controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  footer{margin-top:26px;font-size:11px;color:var(--muted);line-height:1.7}
+  .empty{padding:40px;text-align:center;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <a class="back" href="{{ url_for('index', hours=hours, app_id=app_id) }}">← All articles</a>
+
+  {% if not options %}
+    <div class="empty">No articles have been seen yet. Browse the publisher site, then come back.</div>
+  {% else %}
+
+  <div class="picker">
+    <label for="pick">Article</label>
+    <select id="pick">
+      {% for o in options %}
+        <option value="{{ o.article_id }}" {{ 'selected' if o.article_id == article_id }}>
+          {{ o.title or o.article_id }}{% if o.views_1h %} — {{ o.views_1h }} views/hr{% endif %}
+        </option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <h1>{{ detail.title or article_id }}</h1>
+  <div class="meta">
+    <span>{{ detail.author or '—' }}</span>
+    <span class="tag">{{ detail.category or '—' }}</span>
+    {% if detail.published_at %}<span>published {{ detail.published_at.strftime('%-d %b %Y') }}</span>{% endif %}
+    {% if detail.page_url %}<a href="{{ detail.page_url }}" target="_blank" rel="noopener">open article ↗</a>{% endif %}
+  </div>
+
+  <div class="status">
+    <span class="dot" id="dot"></span>
+    <span id="status-text">
+      {% if coverage.last_tick %}
+        updated {{ coverage.stale_seconds }}s ago · {{ coverage.ticks }}/{{ coverage.expected }} snapshots in {{ hours }}h ({{ coverage.pct }}% coverage)
+      {% else %}no snapshots yet — is the poller running?{% endif %}
+    </span>
+  </div>
+
+  <div class="zone-head">
+    <div class="zone-title">
+      <h2>Right now</h2>
+      <span class="why">current values from Signals — not affected by the range control</span>
+    </div>
+    <span class="badge fixed">Fixed windows</span>
+  </div>
+
+  <div class="tiles">
+    <div class="tile"><div class="k">Views</div>
+      <div class="v" data-k="views_1h">{{ detail.views_1h or 0 }}</div>
+      <div class="s">trailing hour · peak {{ detail.peak_views_1h or 0 }}</div></div>
+    <div class="tile"><div class="k">Readers</div>
+      <div class="v" data-k="unique_readers_1h">{{ detail.unique_readers_1h or 0 }}</div>
+      <div class="s">trailing hour · approximate</div></div>
+    <div class="tile"><div class="k">Engaged time</div>
+      <div class="v" data-engaged>{{ detail.engaged_seconds_1h | duration }}</div>
+      <div class="s">trailing hour · peak {{ detail.peak_engaged_1h | duration }}</div></div>
+    <div class="tile"><div class="k">Interactions</div>
+      <div class="v" data-k="interactions_1h">{{ detail.interactions_1h or 0 }}</div>
+      <div class="s">{{ detail.likes_1h or 0 }} likes · {{ detail.shares_1h or 0 }} shares</div></div>
+    <div class="tile"><div class="k">Last seen</div>
+      <div class="v">{% if detail.time_since_last is not none %}{{ detail.time_since_last | round(0) | int | duration }}{% else %}—{% endif %}</div>
+      <div class="s">since the last event</div></div>
+  </div>
+
+  <div class="zone-head">
+    <div class="zone-title">
+      <h2>Over time</h2>
+      <span class="why">this article's history, reconstructed from snapshots</span>
+    </div>
+    <div class="controls">
+      <span class="badge ranged">Last {{ hours }}h</span>
+      <div class="seg">
+        {% for h in window_choices %}
+          <a class="{{ 'on' if h == hours }}"
+             href="{{ url_for('article', article_id=article_id, hours=h, app_id=app_id) }}">{{ h }}h</a>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <div class="grid g2">
+    <div class="card ranged">
+      <span class="badge ranged cardbadge">Last {{ hours }}h</span>
+      <h2>Views and readers</h2>
+      <p class="hint">Views are trailing 5-minute totals; readers are the trailing hour. Breaks are periods the poller wasn't running.</p>
+      <div id="fig-traffic"></div>
+    </div>
+    <div class="card ranged">
+      <span class="badge ranged cardbadge">Last {{ hours }}h</span>
+      <h2>Engaged time</h2>
+      <p class="hint">Derived at read time: (pings − 1) × {{ heartbeat }}s + {{ min_visit }}s.</p>
+      <div id="fig-engagement"></div>
+    </div>
+  </div>
+
+  <div class="grid g2">
+    <div class="card ranged">
+      <span class="badge ranged cardbadge">Last {{ hours }}h</span>
+      <h2>Interactions</h2>
+      <p class="hint">Likes, bookmarks, favourites and shares — trailing hour, stacked. Series with no activity are hidden.</p>
+      <div id="fig-interactions"></div>
+    </div>
+    <div class="card">
+      <span class="badge fixed cardbadge">Trailing hour</span>
+      <h2>Where its readers are</h2>
+      <p class="hint">Views of this article by country.</p>
+      <div id="fig-geo"></div>
+    </div>
+  </div>
+
+  <footer>
+    Values are <strong>trailing gauges</strong> over their rolling window, sampled from Snowplow Signals every {{ poll_interval }}s — not cumulative totals, and never differenced.
+    First snapshot of this article: {{ detail.first_seen.strftime('%-d %b, %H:%M') if detail.first_seen else '—' }}.
+  </footer>
+  {% endif %}
+</div>
+
+{% if options %}
+<script>
+const ARTICLE_ID = {{ article_id | tojson }};
+const FIGS = {
+  traffic:      {{ figures.traffic      | safe }},
+  engagement:   {{ figures.engagement   | safe }},
+  interactions: {{ figures.interactions | safe }},
+  geo:          {{ figures.geo          | safe }}
+};
+const CFG = {responsive:true, displayModeBar:false};
+for (const [k, f] of Object.entries(FIGS)) Plotly.newPlot('fig-'+k, f.data, f.layout, CFG);
+
+const params = new URLSearchParams(location.search);
+document.getElementById('pick').addEventListener('change', e => {
+  const q = params.toString();
+  location.href = '/article/' + encodeURIComponent(e.target.value) + (q ? '?' + q : '');
+});
+
+async function refresh(){
+  try{
+    const r = await fetch('/api/article/' + encodeURIComponent(ARTICLE_ID) + '?' + params.toString(),
+                          {cache:'no-store'});
+    if(!r.ok) throw new Error(r.status);
+    const d = await r.json();
+
+    for (const [k, v] of Object.entries(d.detail)){
+      const el = document.querySelector(`[data-k="${k}"]`);
+      if (el && typeof v !== 'object') el.textContent = v;
+    }
+    const eng = document.querySelector('[data-engaged]');
+    if (eng) eng.textContent = d.engaged_label;
+
+    for (const [k, f] of Object.entries(d.figures)){
+      const fig = JSON.parse(f);
+      Plotly.react('fig-'+k, fig.data, fig.layout, CFG);
+    }
+
+    const dot = document.getElementById('dot'), txt = document.getElementById('status-text');
+    const stale = d.coverage.stale_seconds;
+    dot.className = 'dot' + (stale == null || stale > 300 ? ' dead' : stale > 150 ? ' stale' : '');
+    txt.textContent = stale == null ? 'no snapshots yet — is the poller running?'
+      : `updated ${stale}s ago · ${d.coverage.ticks}/${d.coverage.expected} snapshots in ${params.get('hours')||6}h (${d.coverage.pct}% coverage)`;
+  }catch(e){ document.getElementById('dot').className = 'dot dead'; }
+}
+setInterval(refresh, 30000);
+</script>
+{% endif %}
+</body>
+</html>
