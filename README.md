@@ -17,6 +17,9 @@ publisher site -> pipeline -> Signals -> poller (60s) -> Postgres -> dashboard
 | `poller/reader.py` | Batch reader (the SDK only reads one identifier at a time) |
 | `poller/run.py` | The 60s snapshot loop |
 | `db/schema.sql` | `site_snapshots` + `article_snapshots` |
+| `dashboard/queries.py` | Read layer; derives engaged time at read time |
+| `dashboard/figures.py` | Plotly figures, built server-side |
+| `dashboard/app.py` | Flask app + `/api/data` for auto-refresh |
 
 ## Attribute groups
 
@@ -67,7 +70,23 @@ uv sync
 uv run python -m signals.publish --dry-run
 uv run python -m signals.publish
 uv run python -m poller.run
+
+# dashboard
+uv run flask --app dashboard.app run --port 5000
 ```
+
+## Reading the dashboard
+
+* Every value is a **trailing gauge** over its rolling window, not a cumulative
+  total. Never diff consecutive rows.
+* A **missing row** means the poller wasn't running -- charts break the line
+  there rather than interpolating across unmeasured time.
+* A **NULL value inside a row** means the window was empty, i.e. zero. Signals
+  returns `None` rather than `default_value` when a rolling window contains no
+  events, so NULL and 0 both mean "nothing happened".
+* The coverage figure in the header (`n/m snapshots`) is shown deliberately:
+  sparse history is a property of the data, and a reader should be able to tell
+  that apart from a rendering artefact.
 
 ## Known gaps
 
