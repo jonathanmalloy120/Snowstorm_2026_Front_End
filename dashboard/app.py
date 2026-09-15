@@ -1,0 +1,104 @@
+"""Flask dashboard for Snowstorm 2026.
+
+Reads only from Postgres. Signals is the aggregation engine; this layer exists
+because the Profiles Store holds current values with no history, and an
+editorial team needs to see change over time.
+
+    uv run flask --app dashboard.app run --debug --port 5000
+"""
+
+from __future__ import annotations
+
+from flask import Flask, jsonify, render_template, request
+
+from dashboard import figures, queries
+from signals import config
+
+app = Flask(__name__)
+
+WINDOW_CHOICES = [1, 6, 24]
+
+
+def _app_id() -> str:
+    """Dashboard is configurable per app_id; default to the first configured."""
+    requested = request.args.get("app_id")
+    if requested and requested in config.APP_IDS:
+        return requested
+    return config.APP_IDS[0]
+
+
+def _hours() -> int:
+    try:
+        h = int(request.args.get("hours", 6))
+    except ValueError:
+        return 6
+    return h if h in WINDOW_CHOICES else 6
+
+
+def _payload(conn, app_id: str, hours: int) -> dict:
+    rows = queries.timeseries(conn, app_id, hours)
+    return {
+        "overview": queries.overview(conn, app_id),
+        "coverage": queries.coverage(conn, app_id, hours),
+        "articles": queries.top_articles(conn, app_id, limit=10),
+        "figures": {
+            "traffic": figures.traffic_over_time(rows),
+            "engagement": figures.engagement_over_time(rows),
+            "geo": figures.geo_choropleth(queries.countries(conn, app_id)),
+            "category": figures.category_bar(queries.categories(conn, app_id)),
+        },
+    }
+
+
+@app.template_filter("duration")
+def duration(seconds: int | None) -> str:
+    s = int(seconds or 0)
+    if s < 60:
+        return f"{s}s"
+    if s < 3600:
+        return f"{s // 60}m {s % 60:02d}s"
+    return f"{s // 3600}h {(s % 3600) // 60:02d}m"
+
+
+@app.route("/")
+def index():
+    app_id, hours = _app_id(), _hours()
+    with queries.connect() as conn:
+        data = _payload(conn, app_id, hours)
+    return render_template(
+        "index.html", app_id=app_id, hours=hours,
+        app_ids=config.APP_IDS, window_choices=WINDOW_CHOICES,
+        poll_interval=config.POLL_INTERVAL_SECONDS,
+        heartbeat=config.HEARTBEAT_DELAY_SECONDS,
+        min_visit=config.MINIMUM_VISIT_LENGTH_SECONDS,
+        **data,
+    )
+
+
+@app.route("/api/data")
+def api_data():
+    """Polled by the page so it refreshes without a reload."""
+    app_id, hours = _app_id(), _hours()
+    with queries.connect() as conn:
+        data = _payload(conn, app_id, hours)
+    ov = data["overview"]
+    return jsonify({
+        "overview": {**ov, "snapshot_ts": ov.get("snapshot_ts").isoformat()
+                     if ov.get("snapshot_ts") else None},
+        "coverage": {**data["coverage"],
+                     "last_tick": data["coverage"]["last_tick"].isoformat()
+                     if data["coverage"].get("last_tick") else None},
+        "articles": [
+            {**a,
+             "published_at": a["published_at"].isoformat() if a.get("published_at") else None,
+             "time_since_last": float(a["time_since_last"]) if a.get("time_since_last") is not None else None,
+             "engaged_label": duration(a["engaged_seconds_1h"])}
+            for a in data["articles"]
+        ],
+        "figures": data["figures"],
+        "engaged_label": duration(ov.get("engaged_seconds_1h", 0)),
+    })
+
+
+if __name__ == "__main__":
+    app.run(debug=True, port=5000)

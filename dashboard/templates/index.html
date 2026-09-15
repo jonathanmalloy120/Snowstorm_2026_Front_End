@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Snowstorm Herald — Editorial Analytics</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
+<style>
+  :root{
+    --bg:#f7f8fa; --card:#fff; --ink:#1b2130; --muted:#6b7482; --line:#e4e7ec;
+    --accent:#2f6fed; --support:#e8833a; --good:#1f9d5c; --warn:#d4a017; --bad:#d64545;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#0f1319; --card:#161b23; --ink:#e8ecf2; --muted:#8a94a6; --line:#242b36; }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+  .wrap{max-width:1240px;margin:0 auto;padding:24px 20px 56px}
+  header{display:flex;flex-wrap:wrap;gap:16px;align-items:baseline;justify-content:space-between;margin-bottom:6px}
+  h1{font-size:20px;margin:0;letter-spacing:-.2px}
+  h1 small{font-weight:400;color:var(--muted);font-size:13px;margin-left:8px}
+  .controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--card)}
+  .seg a{padding:5px 12px;font-size:12px;text-decoration:none;color:var(--muted)}
+  .seg a.on{background:var(--accent);color:#fff}
+  .status{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--muted);margin-bottom:20px}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--good);flex:none}
+  .dot.stale{background:var(--warn)} .dot.dead{background:var(--bad)}
+  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:20px}
+  .tile{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px}
+  .tile .k{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)}
+  .tile .v{font-size:28px;font-weight:600;letter-spacing:-.5px;margin-top:6px;font-variant-numeric:tabular-nums}
+  .tile .s{font-size:11px;color:var(--muted);margin-top:2px}
+  .grid{display:grid;gap:12px;margin-bottom:12px}
+  .g2{grid-template-columns:1fr 1fr}
+  @media (max-width:900px){.g2{grid-template-columns:1fr}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;position:relative}
+  /* Cards driven by the range switcher carry an accent rail; fixed ones don't. */
+  .card.ranged{border-left:3px solid var(--accent)}
+  .zone{margin:28px 0 12px}
+  .zone-head{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;
+             padding-bottom:10px;margin-bottom:12px;border-bottom:1px solid var(--line)}
+  .zone-title{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+  .zone-title h2{font-size:14px;margin:0;font-weight:600;letter-spacing:-.1px}
+  .zone-title .why{font-size:11px;color:var(--muted)}
+  .badge{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:600;
+         text-transform:uppercase;letter-spacing:.5px;padding:3px 8px;border-radius:20px;white-space:nowrap}
+  .badge.ranged{background:rgba(47,111,237,.13);color:var(--accent);border:1px solid rgba(47,111,237,.3)}
+  .badge.fixed{background:transparent;color:var(--muted);border:1px solid var(--line)}
+  .cardbadge{position:absolute;top:14px;right:14px}
+  .card h2{font-size:13px;margin:0 0 2px;font-weight:600;padding-right:92px}
+  .card h2{font-size:13px;margin:0 0 2px;font-weight:600}
+  .card p.hint{margin:0 0 10px;font-size:11px;color:var(--muted)}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.5px;
+     color:var(--muted);font-weight:500;padding:0 10px 8px 0;border-bottom:1px solid var(--line)}
+  td{padding:10px 10px 10px 0;border-bottom:1px solid var(--line);vertical-align:top}
+  tr:last-child td{border-bottom:none}
+  td.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  th.n{text-align:right;padding-right:0}
+  a.title{color:var(--ink);text-decoration:none;font-weight:500}
+  a.title:hover{color:var(--accent);text-decoration:underline}
+  .by{color:var(--muted);font-size:11px;margin-top:2px}
+  .tag{display:inline-block;font-size:10px;text-transform:uppercase;letter-spacing:.4px;
+       color:var(--muted);border:1px solid var(--line);border-radius:5px;padding:1px 6px}
+  .hot{color:var(--support);font-weight:600}
+  footer{margin-top:26px;font-size:11px;color:var(--muted);line-height:1.7}
+  .empty{padding:28px;text-align:center;color:var(--muted);font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>The Snowstorm Herald <small>editorial analytics, powered by Snowplow Signals</small></h1>
+    <div class="controls">
+      {% if app_ids|length > 1 %}
+      <div class="seg">
+        {% for a in app_ids %}
+          <a class="{{ 'on' if a == app_id }}" href="?hours={{ hours }}&app_id={{ a }}">{{ a }}</a>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+  </header>
+
+  <div class="status">
+    <span class="dot" id="dot"></span>
+    <span id="status-text">
+      {% if coverage.last_tick %}
+        updated {{ coverage.stale_seconds }}s ago · {{ coverage.ticks }}/{{ coverage.expected }} snapshots in {{ hours }}h ({{ coverage.pct }}% coverage)
+      {% else %}
+        no snapshots yet — is the poller running?
+      {% endif %}
+    </span>
+  </div>
+
+  <div class="zone-head">
+    <div class="zone-title">
+      <h2>Right now</h2>
+      <span class="why">current values from Signals, each at its own fixed window — not affected by the range control</span>
+    </div>
+    <span class="badge fixed">Fixed windows</span>
+  </div>
+
+  <div class="tiles" id="tiles">
+    <div class="tile"><div class="k">Unique visitors</div>
+      <div class="v" data-k="unique_visitors_1h">{{ overview.unique_visitors_1h or 0 }}</div>
+      <div class="s">trailing hour · approximate</div></div>
+    <div class="tile"><div class="k">Article views</div>
+      <div class="v" data-k="article_views_1h">{{ overview.article_views_1h or 0 }}</div>
+      <div class="s">trailing hour · {{ overview.article_views_6h or 0 }} in trailing 6h</div></div>
+    <div class="tile"><div class="k">Engaged time</div>
+      <div class="v" data-engaged>{{ overview.engaged_seconds_1h | duration }}</div>
+      <div class="s">trailing hour · from page pings</div></div>
+    <div class="tile"><div class="k">Interactions</div>
+      <div class="v" data-k="social_total_1h">{{ overview.social_total_1h or 0 }}</div>
+      <div class="s">likes, bookmarks, favourites, shares</div></div>
+  </div>
+
+  <div class="zone-head">
+    <div class="zone-title">
+      <h2>Over time</h2>
+      <span class="why">history Signals can't provide — reconstructed from snapshots</span>
+    </div>
+    <div class="controls">
+      <span class="badge ranged">Last {{ hours }}h</span>
+      <div class="seg">
+        {% for h in window_choices %}
+          <a class="{{ 'on' if h == hours }}" href="?hours={{ h }}&app_id={{ app_id }}">{{ h }}h</a>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <div class="grid g2">
+    <div class="card ranged">
+      <span class="badge ranged cardbadge">Last {{ hours }}h</span>
+      <h2>Traffic over time</h2>
+      <p class="hint">Trailing 5-minute totals, sampled every {{ poll_interval }}s. Breaks are periods the poller wasn't running.</p>
+      <div id="fig-traffic"></div>
+    </div>
+    <div class="card ranged">
+      <span class="badge ranged cardbadge">Last {{ hours }}h</span>
+      <h2>Engaged time over time</h2>
+      <p class="hint">Derived at read time: (pings − 1) × {{ heartbeat }}s + {{ min_visit }}s.</p>
+      <div id="fig-engagement"></div>
+    </div>
+  </div>
+
+  <div class="zone-head">
+    <div class="zone-title">
+      <h2>Breakdowns</h2>
+      <span class="why">Signals rolling windows — fixed at one hour, not affected by the range control</span>
+    </div>
+    <span class="badge fixed">Trailing hour</span>
+  </div>
+
+  <div class="grid g2">
+    <div class="card">
+      <span class="badge fixed cardbadge">Trailing hour</span>
+      <h2>Where readers are</h2>
+      <p class="hint">Article views by country, trailing hour.</p>
+      <div id="fig-geo"></div>
+    </div>
+    <div class="card">
+      <span class="badge fixed cardbadge">Trailing hour</span>
+      <h2>Sections</h2>
+      <p class="hint">Article views by category, trailing hour.</p>
+      <div id="fig-category"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <span class="badge fixed cardbadge">Trailing hour</span>
+    <h2>Top articles</h2>
+    <p class="hint">Ranked by views in the trailing hour.</p>
+    <table>
+      <thead><tr>
+        <th>Article</th><th>Section</th>
+        <th class="n">Views 1h</th><th class="n">Readers</th>
+        <th class="n">Engaged</th><th class="n">Interactions</th><th class="n">Last seen</th>
+      </tr></thead>
+      <tbody id="articles">
+      {% for a in articles %}
+        <tr>
+          <td>
+            {% if a.page_url %}<a class="title" href="{{ a.page_url }}" target="_blank" rel="noopener">{{ a.title or a.article_id }}</a>
+            {% else %}<span class="title">{{ a.title or a.article_id }}</span>{% endif %}
+            <div class="by">{{ a.author or '—' }}</div>
+          </td>
+          <td><span class="tag">{{ a.category or '—' }}</span></td>
+          <td class="n">{{ a.views_1h }}</td>
+          <td class="n">{{ a.unique_readers_1h }}</td>
+          <td class="n">{{ a.engaged_seconds_1h | duration }}</td>
+          <td class="n">{{ a.interactions_1h }}</td>
+          <td class="n">{% if a.time_since_last is not none %}
+              <span class="{{ 'hot' if a.time_since_last < 300 }}">{{ a.time_since_last | round(0) | int | duration }} ago</span>
+            {% else %}—{% endif %}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="7" class="empty">No articles seen yet. Browse the publisher site to populate this.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <footer>
+    Every value is a <strong>trailing gauge</strong> over its rolling window, sampled from the Snowplow Signals Profiles Store every {{ poll_interval }}s — not a cumulative total, and never differenced.<br>
+    Signals answers <em>what is true now</em>; the Postgres snapshot layer is what makes <em>change over time</em> visible. That is why only the <span class="badge ranged">Last {{ hours }}h</span> panels follow the range control — everything marked <span class="badge fixed">Trailing hour</span> is a Signals rolling window read at its own fixed period. Unique visitors are approximate (HyperLogLog, ~1% error).
+  </footer>
+</div>
+
+<script>
+const FIGS = {
+  traffic:    {{ figures.traffic    | safe }},
+  engagement: {{ figures.engagement | safe }},
+  geo:        {{ figures.geo        | safe }},
+  category:   {{ figures.category   | safe }}
+};
+const CFG = {responsive:true, displayModeBar:false};
+for (const [k, f] of Object.entries(FIGS)) Plotly.newPlot('fig-'+k, f.data, f.layout, CFG);
+
+const params = new URLSearchParams(location.search);
+async function refresh(){
+  try{
+    const r = await fetch('/api/data?' + params.toString(), {cache:'no-store'});
+    if(!r.ok) throw new Error(r.status);
+    const d = await r.json();
+
+    for (const [k, v] of Object.entries(d.overview)){
+      const el = document.querySelector(`[data-k="${k}"]`);
+      if (el && typeof v !== 'object') el.textContent = v;
+    }
+    const eng = document.querySelector('[data-engaged]');
+    if (eng) eng.textContent = d.engaged_label;
+
+    for (const [k, f] of Object.entries(d.figures)){
+      const fig = JSON.parse(f);
+      Plotly.react('fig-'+k, fig.data, fig.layout, CFG);
+    }
+
+    const dot = document.getElementById('dot');
+    const txt = document.getElementById('status-text');
+    const stale = d.coverage.stale_seconds;
+    dot.className = 'dot' + (stale == null || stale > 300 ? ' dead' : stale > 150 ? ' stale' : '');
+    txt.textContent = stale == null
+      ? 'no snapshots yet — is the poller running?'
+      : `updated ${stale}s ago · ${d.coverage.ticks}/${d.coverage.expected} snapshots in ${params.get('hours')||6}h (${d.coverage.pct}% coverage)`;
+  }catch(e){
+    document.getElementById('dot').className = 'dot dead';
+  }
+}
+setInterval(refresh, 30000);
+</script>
+</body>
+</html>
