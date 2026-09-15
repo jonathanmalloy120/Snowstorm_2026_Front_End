@@ -10,7 +10,8 @@ are published, so publish before generating any traffic you care about.
 import argparse
 import sys
 
-from snowplow_signals import Signals
+from snowplow_signals import AttributeKey, Service, Signals
+from snowplow_signals.api_client import SignalsAPIError
 
 from signals import config
 from signals.definitions import ALL_GROUPS, ALL_KEYS, ALL_OBJECTS, ALL_SERVICES
@@ -64,8 +65,39 @@ def main() -> None:
         "groups": ALL_GROUPS,
         "services": ALL_SERVICES,
     }[args.only]
-    signals.publish(targets)
-    print(f"\npublished {len(targets)} object(s) [--only {args.only}]")
+    # Published attribute groups are immutable, so re-running this is expected
+    # to hit "already exists" / "Cannot update published attribute group" for
+    # anything unchanged. That is not an error: publish object by object and
+    # report those as unchanged, so the command is safe to re-run. To actually
+    # change a live group, bump its version -- see README.
+    IMMUTABLE = ("already exists", "Cannot update published")
+
+    done: list[str] = []
+    unchanged: list[str] = []
+    for obj in targets:
+        kind = ("key" if isinstance(obj, AttributeKey)
+                else "service" if isinstance(obj, Service) else "group")
+        label = f"{kind} {obj.name}"
+        try:
+            signals.publish([obj])
+            done.append(label)
+        except SignalsAPIError as e:
+            if e.status_code == 400 and any(m in str(e) for m in IMMUTABLE):
+                unchanged.append(label)
+            else:
+                raise
+
+    def _summary(items: list[str]) -> str:
+        counts: dict[str, int] = {}
+        for i in items:
+            counts[i.split()[0]] = counts.get(i.split()[0], 0) + 1
+        return ", ".join(f"{n} {k}{'s' if n > 1 else ''}"
+                         for k, n in counts.items()) or "nothing"
+
+    print()
+    print(f"published: {_summary(done)}")
+    if unchanged:
+        print(f"unchanged: {_summary(unchanged)} (already published; bump version to change)")
 
 
 if __name__ == "__main__":
