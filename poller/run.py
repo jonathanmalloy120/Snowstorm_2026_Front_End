@@ -192,6 +192,35 @@ def tick(reader: SignalsReader, conn: psycopg.Connection) -> None:
         )
 
 
+def _discard(conn: psycopg.Connection | None) -> None:
+    """Close a connection we no longer trust, ignoring errors from doing so."""
+    if conn is not None:
+        try:
+            conn.close()
+        except Exception:
+            pass
+    return None
+
+
+def _connect() -> psycopg.Connection | None:
+    """Connect, retrying while the database is unavailable.
+
+    Returns None only if we are shutting down. Backs off to avoid hammering a
+    database that is still starting up, but stays well under the poll interval
+    so a brief outage costs at most a tick or two.
+    """
+    delay = 2.0
+    while _running:
+        try:
+            return psycopg.connect(config.DATABASE_URL)
+        except psycopg.OperationalError as exc:
+            log.warning("database unavailable (%s); retrying in %.0fs",
+                        str(exc).strip().splitlines()[0], delay)
+            time.sleep(delay)
+            delay = min(delay * 2, 30.0)
+    return None
+
+
 def main() -> None:
     signal.signal(signal.SIGINT, _stop)
     signal.signal(signal.SIGTERM, _stop)
@@ -210,23 +239,42 @@ def main() -> None:
         org_id=config.SIGNALS_ORG_ID,
     )
 
-    with psycopg.connect(config.DATABASE_URL) as conn:
-        verify_schema(conn)
-        log.info(
-            "polling %s every %ds -> %s",
-            config.APP_IDS, config.POLL_INTERVAL_SECONDS, config.DATABASE_URL.rsplit("@", 1)[-1],
-        )
-        while _running:
-            started = time.monotonic()
+    log.info(
+        "polling %s every %ds -> %s",
+        config.APP_IDS, config.POLL_INTERVAL_SECONDS,
+        config.DATABASE_URL.rsplit("@", 1)[-1],
+    )
+
+    conn: psycopg.Connection | None = None
+    while _running:
+        started = time.monotonic()
+        try:
+            if conn is None or conn.closed:
+                conn = _connect()
+                if conn is None:      # shutting down mid-retry
+                    break
+                verify_schema(conn)
+            tick(reader, conn)
+        except psycopg.OperationalError:
+            # The database went away -- a restart, an upgrade, a laptop wake.
+            # Drop the dead handle and reconnect next tick rather than exiting;
+            # Signals cannot backdate, so staying alive is what protects
+            # history.
+            log.warning("database connection lost; will reconnect", exc_info=True)
+            conn = _discard(conn)
+        except Exception:
+            log.exception("tick failed")
             try:
-                tick(reader, conn)
+                if conn is not None:
+                    conn.rollback()
             except Exception:
-                log.exception("tick failed")
-                conn.rollback()
-            # Drift-free cadence: sleep the remainder, not a flat interval.
-            elapsed = time.monotonic() - started
-            if _running:
-                time.sleep(max(0.0, config.POLL_INTERVAL_SECONDS - elapsed))
+                conn = _discard(conn)
+        # Drift-free cadence: sleep the remainder, not a flat interval.
+        elapsed = time.monotonic() - started
+        if _running:
+            time.sleep(max(0.0, config.POLL_INTERVAL_SECONDS - elapsed))
+
+    _discard(conn)
 
 
 if __name__ == "__main__":
