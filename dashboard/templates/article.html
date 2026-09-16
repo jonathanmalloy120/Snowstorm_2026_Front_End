@@ -31,6 +31,8 @@
   .status{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--muted);margin:16px 0 18px}
   .dot{width:8px;height:8px;border-radius:50%;background:var(--good);flex:none}
   .dot.stale{background:var(--warn)} .dot.dead{background:var(--bad)}
+  #refresh-age{color:var(--muted)} #refresh-age.stale{color:var(--warn)}
+  .sep{opacity:.45}
   .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:8px}
   .tile{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px}
   .tile .k{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)}
@@ -96,6 +98,8 @@
         updated {{ coverage.stale_seconds }}s ago · {{ coverage.ticks }}/{{ coverage.expected }} snapshots in {{ hours }}h ({{ coverage.pct }}% coverage)
       {% else %}no snapshots yet — is the poller running?{% endif %}
     </span>
+    <span class="sep">·</span>
+    <span>page refreshed <span id="refresh-age">just now</span></span>
   </div>
 
   <div class="zone-head">
@@ -195,7 +199,33 @@ document.getElementById('pick').addEventListener('change', e => {
   location.href = '/article/' + encodeURIComponent(e.target.value) + (q ? '?' + q : '');
 });
 
+
+// --- liveness -------------------------------------------------------------
+// Two things made a working refresh look broken:
+//   1. when traffic is flat every tile shows the same number forever, so there
+//      was no way to tell a live page from a frozen one;
+//   2. Chrome throttles setInterval in hidden tabs (to ~1/min, sometimes
+//      frozen), so switching back to the tab showed stale data with no hint.
+// Hence: a ticking age counter, and an immediate refresh on becoming visible.
+let lastRefresh = Date.now();
+let refreshing = false;
+
+function renderAge(){
+  const el = document.getElementById('refresh-age');
+  if (!el) return;
+  const s = Math.round((Date.now() - lastRefresh) / 1000);
+  el.textContent = s < 2 ? 'just now' : s < 60 ? `${s}s ago` : `${Math.floor(s/60)}m ${s%60}s ago`;
+  el.classList.toggle('stale', s > 90);
+}
+setInterval(renderAge, 1000);
+
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) refresh();
+});
+
 async function refresh(){
+  if (refreshing) return;          // a slow fetch must not stack up behind itself
+  refreshing = true;
   try{
     const r = await fetch('/api/article/' + encodeURIComponent(ARTICLE_ID) + '?' + params.toString(),
                           {cache:'no-store'});
@@ -221,7 +251,10 @@ async function refresh(){
     dot.className = 'dot' + (stale == null || stale > 300 ? ' dead' : stale > 150 ? ' stale' : '');
     txt.textContent = stale == null ? 'no snapshots yet — is the poller running?'
       : `updated ${stale}s ago · ${d.coverage.ticks}/${d.coverage.expected} snapshots in ${params.get('hours')||6}h (${d.coverage.pct}% coverage)`;
-  }catch(e){ document.getElementById('dot').className = 'dot dead'; }
+    lastRefresh = Date.now();
+    renderAge();
+  }catch(e){ document.getElementById('dot').className = 'dot dead';
+  }finally{ refreshing = false; }
 }
 setInterval(refresh, 30000);
 </script>
