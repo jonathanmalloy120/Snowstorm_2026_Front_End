@@ -29,6 +29,24 @@
   .dot.stale{background:var(--warn)} .dot.dead{background:var(--bad)}
   #refresh-age{color:var(--muted)} #refresh-age.stale{color:var(--warn)}
   .sep{opacity:.45}
+  /* Live strip: the one path that reads Signals directly. Visually separated
+     from everything below, which is snapshot-derived. */
+  .live{background:linear-gradient(180deg,rgba(47,111,237,.10),rgba(47,111,237,.03));
+        border:1px solid rgba(47,111,237,.35);border-radius:12px;padding:14px 16px;margin-bottom:14px}
+  .live-head{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:10px}
+  .live-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--accent)}
+  .live-meta{font-size:11px;color:var(--muted);margin-left:auto}
+  .pulse{width:8px;height:8px;border-radius:50%;background:var(--accent);display:inline-block;
+         margin-right:7px;animation:pulse 2s ease-in-out infinite}
+  .pulse.dead{background:var(--bad);animation:none}
+  @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.8)}}
+  .live-nums{display:flex;flex-wrap:wrap;gap:28px}
+  .live-num b{display:block;font-size:30px;font-weight:600;letter-spacing:-.6px;
+              font-variant-numeric:tabular-nums;line-height:1.1}
+  .live-num span{font-size:11px;color:var(--muted)}
+  .jump{display:flex;gap:8px;align-items:center}
+  .jump select{background:var(--card);color:var(--ink);border:1px solid var(--line);
+               border-radius:8px;padding:6px 10px;font-size:12px;max-width:340px}
   .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:20px}
   .tile{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px}
   .tile .k{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)}
@@ -79,6 +97,17 @@
   <header>
     <h1>The Snowstorm Herald <small>editorial analytics, powered by Snowplow Signals</small></h1>
     <div class="controls">
+      {% if options %}
+      <div class="jump">
+        <label for="jump" style="font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)">Article</label>
+        <select id="jump">
+          <option value="">Jump to an article…</option>
+          {% for o in options %}
+            <option value="{{ o.article_id }}">{{ o.title or o.article_id }}{% if o.views_1h %} — {{ o.views_1h }}/hr{% endif %}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endif %}
       {% if app_ids|length > 1 %}
       <div class="seg">
         {% for a in app_ids %}
@@ -100,6 +129,18 @@
     </span>
     <span class="sep">·</span>
     <span>page refreshed <span id="refresh-age">just now</span></span>
+  </div>
+
+  <div class="live">
+    <div class="live-head">
+      <span class="live-title"><span class="pulse" id="live-pulse"></span>Live from Signals</span>
+      <span class="live-meta">read directly — no snapshot in between · <span id="live-age">connecting…</span></span>
+    </div>
+    <div class="live-nums">
+      <div class="live-num"><b id="live-article_views_5m">–</b><span>article views · last 5 min</span></div>
+      <div class="live-num"><b id="live-page_views_5m">–</b><span>page views · last 5 min</span></div>
+      <div class="live-num"><b id="live-unique_visitors_1h">–</b><span>visitors · last hour</span></div>
+    </div>
   </div>
 
   <div class="zone-head">
@@ -250,7 +291,53 @@ function renderAge(){
 setInterval(renderAge, 1000);
 
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) refresh();
+  if (!document.hidden) { refresh(); pollLive(); }
+});
+
+// --- live tile -------------------------------------------------------------
+// Reads Signals directly every 5s. Measured event->Signals latency is ~6s, so
+// this is close to the floor; polling faster buys nothing but load.
+const LIVE_KEYS = ['article_views_5m', 'page_views_5m', 'unique_visitors_1h'];
+let liveAt = null, livePolling = false;
+
+function renderLiveAge(){
+  const el = document.getElementById('live-age');
+  if (!el) return;
+  if (liveAt === null) return;
+  const s = Math.round((Date.now() - liveAt) / 1000);
+  el.textContent = s < 2 ? 'updated just now' : `updated ${s}s ago`;
+}
+setInterval(renderLiveAge, 1000);
+
+async function pollLive(){
+  if (livePolling) return;
+  livePolling = true;
+  const pulse = document.getElementById('live-pulse');
+  try{
+    const r = await fetch('/api/live?' + params.toString(), {cache:'no-store'});
+    if(!r.ok) throw new Error(r.status);
+    const d = await r.json();
+    for (const k of LIVE_KEYS){
+      const el = document.getElementById('live-' + k);
+      if (el) el.textContent = d.values[k] === null ? '–' : d.values[k];
+    }
+    if (pulse) pulse.classList.toggle('dead', !d.ok);
+    liveAt = Date.now();
+    renderLiveAge();
+  }catch(e){
+    if (pulse) pulse.classList.add('dead');
+    const el = document.getElementById('live-age');
+    if (el) el.textContent = 'unreachable';
+  }finally{ livePolling = false; }
+}
+pollLive();
+setInterval(pollLive, 5000);
+
+const jump = document.getElementById('jump');
+if (jump) jump.addEventListener('change', e => {
+  if (!e.target.value) return;
+  const q = params.toString();
+  location.href = '/article/' + encodeURIComponent(e.target.value) + (q ? '?' + q : '');
 });
 
 async function refresh(){

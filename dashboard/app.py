@@ -9,14 +9,39 @@ editorial team needs to see change over time.
 
 from __future__ import annotations
 
+import time
+
 from flask import Flask, abort, jsonify, redirect, render_template, request, url_for
 
 from dashboard import figures, queries
+from poller.reader import SignalsReader
 from signals import config
+from signals.definitions import site_metrics
 
 app = Flask(__name__)
 
 WINDOW_CHOICES = [1, 6, 24]
+
+# Metrics the live tile reads STRAIGHT FROM SIGNALS, bypassing Postgres.
+# Everything else on the page is snapshot-derived; this is the one path that
+# shows what Signals knows right now.
+LIVE_ATTRS = ["article_views_5m", "page_views_5m", "unique_visitors_1h"]
+
+# One reader for the process: ApiClient caches the JWT and refreshes it on
+# expiry, so a per-request reader would re-authenticate on every poll (~700ms)
+# instead of ~300ms. Not thread-safe for token refresh; the worst case is two
+# concurrent requests both fetching a token, which is harmless.
+_reader: SignalsReader | None = None
+
+
+def _signals_reader() -> SignalsReader:
+    global _reader
+    if _reader is None:
+        _reader = SignalsReader(
+            api_url=config.SIGNALS_API_URL, api_key=config.SIGNALS_API_KEY,
+            api_key_id=config.SIGNALS_API_KEY_ID, org_id=config.SIGNALS_ORG_ID,
+        )
+    return _reader
 
 
 def _app_id() -> str:
@@ -65,8 +90,9 @@ def index():
     app_id, hours = _app_id(), _hours()
     with queries.connect() as conn:
         data = _payload(conn, app_id, hours)
+        options = queries.article_options(conn, app_id)
     return render_template(
-        "index.html", app_id=app_id, hours=hours,
+        "index.html", app_id=app_id, hours=hours, options=options,
         app_ids=config.APP_IDS, window_choices=WINDOW_CHOICES,
         poll_interval=config.POLL_INTERVAL_SECONDS,
         heartbeat=config.HEARTBEAT_DELAY_SECONDS,
@@ -145,6 +171,34 @@ def api_article(article_id: str):
         "engaged_label": duration(d.get("engaged_seconds_1h", 0)),
         "peak_engaged_label": duration(d.get("peak_engaged_1h", 0)),
         "interactions_label": d.get("interactions_label", ""),
+    })
+
+
+@app.route("/api/live")
+def api_live():
+    """Current values read directly from Signals, with no snapshot in between.
+
+    Measured end-to-end latency from a page view on the publisher to a changed
+    value here is ~6s, which is the pipeline and cannot be polled away. The
+    page polls this every 5s; faster gains nothing.
+    """
+    app_id = _app_id()
+    started = time.monotonic()
+    try:
+        values = _signals_reader().read_one(
+            site_metrics.name, site_metrics.version, LIVE_ATTRS,
+            site_metrics.attribute_key.name, app_id,
+        )
+    except Exception:
+        app.logger.exception("live Signals read failed")
+        # Degrade to nulls rather than breaking the page: this is one tile, and
+        # the rest of the dashboard does not depend on Signals being reachable.
+        return jsonify({"ok": False, "values": {k: None for k in LIVE_ATTRS}}), 200
+
+    return jsonify({
+        "ok": True,
+        "values": {k: (int(values[k]) if values.get(k) is not None else 0) for k in LIVE_ATTRS},
+        "read_ms": round((time.monotonic() - started) * 1000),
     })
 
 

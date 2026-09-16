@@ -257,8 +257,14 @@ is broken. To put data on it, open the live site and click around:
   charts.
 - **Use a VPN** if you want the map to show more than one country.
 
-Then wait up to 60 seconds for the next snapshot. The "Right now" tiles move
-first; the over-time charts need a few snapshots before there is a line to see.
+The **Live from Signals** strip at the top moves first — within about 10
+seconds. Everything else waits for the next snapshot (up to 60s) and then the
+page's own refresh (up to 30s), so give it ~90 seconds before concluding
+nothing happened. The over-time charts need several snapshots before there is a
+line worth looking at.
+
+To open one article's history, use **Jump to an article…** in the header, or
+click any title in the Top articles table.
 
 ---
 
