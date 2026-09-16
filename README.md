@@ -15,7 +15,15 @@ program (the **poller**) takes a snapshot of those values every 60 seconds and
 files them in a database. That is what turns "right now" into a chart you can
 look back through. Every number on the dashboard came from Signals.
 
-The fake news site that generates the traffic lives in a separate repo:
+The traffic comes from a fake news site, **The Snowstorm Herald**, now hosted:
+
+### 👉 [snowstorm2026publisher.vercel.app](https://snowstorm2026publisher.vercel.app/)
+
+Browsing it is all it takes to make numbers appear on the dashboard — you do
+not need to run it locally. It tracks to the same pipeline and the same
+`app_id` (`snowstorm-2026-publisher`) that this project reads.
+
+Its source lives in a separate repo:
 [Snowstorm_2026_Publisher](https://github.com/jonathanmalloy120/Snowstorm_2026_Publisher).
 
 ---
@@ -235,6 +243,27 @@ The page refreshes itself every 30 seconds, so you can leave it open.
 
 
 
+## Making something happen
+
+An empty dashboard usually means nobody has browsed recently, not that anything
+is broken. To put data on it, open the live site and click around:
+
+**[snowstorm2026publisher.vercel.app](https://snowstorm2026publisher.vercel.app/)**
+
+- **Read an article for 30+ seconds.** Engaged time comes from page pings, and
+  the first ping only fires after 10 seconds of activity — quick clicks record
+  zero engagement.
+- **Like, bookmark, favourite or share something**, to populate the interaction
+  charts.
+- **Use a VPN** if you want the map to show more than one country.
+
+Then wait up to 60 seconds for the next snapshot. The "Right now" tiles move
+first; the over-time charts need a few snapshots before there is a line to see.
+
+---
+
+
+
 ## Is it actually working?
 
 If something looks wrong, these three checks tell you *where* the problem is,
@@ -256,7 +285,8 @@ print(r.read_one(site_metrics.name, site_metrics.version,
 ```
 
 Numbers coming back? Signals is fine — go to check 2. All zeros and `None`?
-The problem is *upstream*: either nobody has browsed the site recently, or the
+The problem is *upstream*: either nobody has browsed
+[the site](https://snowstorm2026publisher.vercel.app/) recently, or the
 tracking/enrichment/schema setup in step 4 isn't right.
 
 **Check 2 — is the poller writing?**
