@@ -15,6 +15,15 @@ import pycountry
 from signals import config
 
 # Editorial palette: one accent, one muted support, neutral everything else.
+# Counts are discrete and sparse. Lines are drawn LINEAR, never splined:
+# smoothing would invent intermediate values the snapshots never recorded, and
+# can overshoot below zero — the same class of fabrication that gap-breaking
+# exists to avoid.
+#
+# For the same reason these series carry no area fill. Plotly's fill="tozeroy"
+# spans a None even when connectgaps=False, so a filled series draws a solid
+# wedge straight across hours the poller never sampled — exactly the lie the
+# broken line is there to prevent.
 ACCENT = "#2f6fed"
 SUPPORT = "#e8833a"
 MUTED = "#8a94a6"
@@ -82,9 +91,7 @@ def traffic_over_time(rows: list[dict]) -> str:
         fig.add_trace(go.Scatter(
             x=xs, y=ys, name=name, mode="lines",
             line=dict(color=colour, width=2.2 if colour == ACCENT else 1.4,
-                      shape="spline", smoothing=0.5),
-            fill="tozeroy" if colour == ACCENT else None,
-            fillcolor="rgba(47,111,237,0.10)",
+                      shape="linear"),
             connectgaps=False,
             hovertemplate="%{y} in trailing 5 min<extra>" + name + "</extra>",
         ))
@@ -101,8 +108,8 @@ def engagement_over_time(rows: list[dict]) -> str:
     xs, ys = _break_gaps(rows, "engaged_seconds_5m")
     fig = go.Figure(go.Scatter(
         x=xs, y=ys, mode="lines", name="Engaged time",
-        line=dict(color=SUPPORT, width=2.2, shape="spline", smoothing=0.5),
-        fill="tozeroy", fillcolor="rgba(232,131,58,0.12)", connectgaps=False,
+        line=dict(color=SUPPORT, width=2.2, shape="linear"),
+        connectgaps=False,
         hovertemplate="%{y}s engaged in trailing 5 min<extra></extra>",
     ))
     fig.update_layout(**_layout(height=240, showlegend=False,
@@ -168,3 +175,83 @@ def category_bar(counts: dict[str, int]) -> str:
                       xaxis=dict(title="views (trailing hour)", gridcolor=GRID, zeroline=False),
                       yaxis=dict(showgrid=False)))
     return fig.to_json()
+
+
+# ---------------------------------------------------------------------------
+# Single-article figures
+# ---------------------------------------------------------------------------
+
+INTERACTION_SERIES = (
+    ("likes_1h", "Likes", ACCENT),
+    ("bookmarks_1h", "Bookmarks", SUPPORT),
+    ("favorites_1h", "Favourites", "#9b59d0"),
+    ("shares_1h", "Shares", "#1f9d5c"),
+)
+
+
+def article_traffic(rows: list[dict]) -> str:
+    """Views and readers for one article over the window."""
+    if not rows:
+        return _empty("No snapshots for this article in this window")
+    fig = go.Figure()
+    for key, name, colour, fill in (
+        ("views_5m", "Views (trailing 5 min)", ACCENT, True),
+        ("unique_readers_1h", "Readers (trailing hour)", MUTED, False),
+    ):
+        xs, ys = _break_gaps(rows, key)
+        fig.add_trace(go.Scatter(
+            x=xs, y=ys, name=name, mode="lines", connectgaps=False,
+            line=dict(color=colour, width=2.2 if fill else 1.4,
+                      shape="linear"),
+            hovertemplate="%{y}<extra>" + name + "</extra>",
+        ))
+    fig.update_layout(**_layout(height=280,
+                      xaxis=dict(showgrid=False, showline=True, linecolor=GRID),
+                      yaxis=dict(gridcolor=GRID, zeroline=False, rangemode="tozero")))
+    return fig.to_json()
+
+
+def article_engagement(rows: list[dict]) -> str:
+    if not rows:
+        return _empty("No snapshots for this article in this window")
+    xs, ys = _break_gaps(rows, "engaged_seconds_5m")
+    fig = go.Figure(go.Scatter(
+        x=xs, y=ys, mode="lines", connectgaps=False,
+        line=dict(color=SUPPORT, width=2.2, shape="linear"),
+        hovertemplate="%{y}s engaged in trailing 5 min<extra></extra>",
+    ))
+    fig.update_layout(**_layout(height=240, showlegend=False,
+                      xaxis=dict(showgrid=False, showline=True, linecolor=GRID),
+                      yaxis=dict(title="engaged seconds", gridcolor=GRID,
+                                 zeroline=False, rangemode="tozero")))
+    return fig.to_json()
+
+
+def article_interactions(rows: list[dict]) -> str:
+    """Stacked interaction counts. Omits series that are flat zero, so a quiet
+    article doesn't show four meaningless legend entries."""
+    if not rows:
+        return _empty("No snapshots for this article in this window")
+    active = [(k, n, c) for k, n, c in INTERACTION_SERIES if any(r[k] for r in rows)]
+    if not active:
+        return _empty("No likes, bookmarks, favourites or shares yet")
+
+    fig = go.Figure()
+    for key, name, colour in active:
+        xs, ys = _break_gaps(rows, key)
+        fig.add_trace(go.Scatter(
+            x=xs, y=ys, name=name, mode="lines", connectgaps=False,
+            stackgroup="one", line=dict(color=colour, width=0.8),
+            hovertemplate="%{y}<extra>" + name + "</extra>",
+        ))
+    fig.update_layout(**_layout(height=240,
+                      xaxis=dict(showgrid=False, showline=True, linecolor=GRID),
+                      yaxis=dict(title="interactions (trailing hour)",
+                                 gridcolor=GRID, zeroline=False, rangemode="tozero")))
+    return fig.to_json()
+
+
+def article_geo(counts: dict[str, int]) -> str:
+    if not counts:
+        return _empty("No geo data for this article yet")
+    return geo_choropleth(counts)

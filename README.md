@@ -298,6 +298,10 @@ Signals alone cannot give you.
 - **Breakdowns** — where readers are, which sections, which articles. Fixed at
 the trailing hour.
 
+Click any article title for a dedicated page with that article's own history —
+views, readers, engaged time, interactions and geography over the same
+1h / 6h / 24h range. The ↗ next to a title opens the published article itself.
+
 Two things worth knowing when reading any number:
 
 - **Gaps in a line are real.** Where the poller wasn't running, the line breaks

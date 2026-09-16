@@ -61,6 +61,8 @@
   th.n{text-align:right;padding-right:0}
   a.title{color:var(--ink);text-decoration:none;font-weight:500}
   a.title:hover{color:var(--accent);text-decoration:underline}
+  a.ext{color:var(--muted);text-decoration:none;font-size:11px;margin-left:6px}
+  a.ext:hover{color:var(--accent)}
   .by{color:var(--muted);font-size:11px;margin-top:2px}
   .tag{display:inline-block;font-size:10px;text-transform:uppercase;letter-spacing:.4px;
        color:var(--muted);border:1px solid var(--line);border-radius:5px;padding:1px 6px}
@@ -116,7 +118,7 @@
       <div class="s">trailing hour · from page pings</div></div>
     <div class="tile"><div class="k">Interactions</div>
       <div class="v" data-k="social_total_1h">{{ overview.social_total_1h or 0 }}</div>
-      <div class="s">likes, bookmarks, favourites, shares</div></div>
+      <div class="s" data-social>{{ overview.social_label }}</div></div>
   </div>
 
   <div class="zone-head">
@@ -175,7 +177,7 @@
   <div class="card">
     <span class="badge fixed cardbadge">Trailing hour</span>
     <h2>Top articles</h2>
-    <p class="hint">Ranked by views in the trailing hour.</p>
+    <p class="hint">Ranked by views in the trailing hour. Click a title for that article's history; ↗ opens the article itself.</p>
     <table>
       <thead><tr>
         <th>Article</th><th>Section</th>
@@ -186,8 +188,8 @@
       {% for a in articles %}
         <tr>
           <td>
-            {% if a.page_url %}<a class="title" href="{{ a.page_url }}" target="_blank" rel="noopener">{{ a.title or a.article_id }}</a>
-            {% else %}<span class="title">{{ a.title or a.article_id }}</span>{% endif %}
+            <a class="title" href="{{ url_for('article', article_id=a.article_id, hours=hours, app_id=app_id) }}">{{ a.title or a.article_id }}</a>
+            {% if a.page_url %}<a class="ext" href="{{ a.page_url }}" target="_blank" rel="noopener" title="Open the article itself">↗</a>{% endif %}
             <div class="by">{{ a.author or '—' }}</div>
           </td>
           <td><span class="tag">{{ a.category or '—' }}</span></td>
@@ -235,6 +237,8 @@ async function refresh(){
     }
     const eng = document.querySelector('[data-engaged]');
     if (eng) eng.textContent = d.engaged_label;
+    const soc = document.querySelector('[data-social]');
+    if (soc) soc.textContent = d.social_label;
 
     for (const [k, f] of Object.entries(d.figures)){
       const fig = JSON.parse(f);
