@@ -144,6 +144,7 @@ def api_article(article_id: str):
         "figures": data["figures"],
         "engaged_label": duration(d.get("engaged_seconds_1h", 0)),
         "peak_engaged_label": duration(d.get("peak_engaged_1h", 0)),
+        "interactions_label": d.get("interactions_label", ""),
     })
 
 
@@ -169,6 +170,7 @@ def api_data():
         ],
         "figures": data["figures"],
         "engaged_label": duration(ov.get("engaged_seconds_1h", 0)),
+        "social_label": ov.get("social_label", ""),
     })
 
 

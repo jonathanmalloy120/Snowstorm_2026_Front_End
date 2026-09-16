@@ -118,7 +118,7 @@
       <div class="s">trailing hour · peak {{ detail.peak_engaged_1h | duration }}</div></div>
     <div class="tile"><div class="k">Interactions</div>
       <div class="v" data-k="interactions_1h">{{ detail.interactions_1h or 0 }}</div>
-      <div class="s">{{ detail.likes_1h or 0 }} likes · {{ detail.shares_1h or 0 }} shares</div></div>
+      <div class="s" data-interactions>{{ detail.interactions_label }}</div></div>
     <div class="tile"><div class="k">Last seen</div>
       <div class="v">{% if detail.time_since_last is not none %}{{ detail.time_since_last | round(0) | int | duration }}{% else %}—{% endif %}</div>
       <div class="s">since the last event</div></div>
@@ -208,6 +208,8 @@ async function refresh(){
     }
     const eng = document.querySelector('[data-engaged]');
     if (eng) eng.textContent = d.engaged_label;
+    const inter = document.querySelector('[data-interactions]');
+    if (inter) inter.textContent = d.interactions_label;
 
     for (const [k, f] of Object.entries(d.figures)){
       const fig = JSON.parse(f);

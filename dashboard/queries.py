@@ -73,6 +73,7 @@ def overview(conn: psycopg.Connection, app_id: str) -> dict[str, Any]:
         "engaged_seconds_1h": engaged_seconds(row["pings_1h"]),
         "social_total_1h": sum(int(v) for v in social.values()),
         "social_breakdown_1h": social,
+        "social_label": interaction_summary(social),
     }
 
 
@@ -188,6 +189,30 @@ def coverage(conn: psycopg.Connection, app_id: str, hours: int = 6) -> dict[str,
 
 INTERACTION_COLS = ("likes_1h", "bookmarks_1h", "favorites_1h", "shares_1h")
 
+# interaction_type values -> (singular, plural) for display. UK spelling in the
+# UI; the schema enum itself is US ("favorite").
+INTERACTION_LABELS = {
+    "like": ("like", "likes"),
+    "bookmark": ("bookmark", "bookmarks"),
+    "favorite": ("favourite", "favourites"),
+    "share": ("share", "shares"),
+}
+
+
+def interaction_summary(counts: dict[str, int]) -> str:
+    """Render a breakdown whose parts add up to the headline total.
+
+    Only non-zero types are listed, so the visible numbers always sum to the
+    total shown above them -- listing a subset (e.g. likes and shares only)
+    silently contradicts it.
+    """
+    parts = []
+    for kind, (one, many) in INTERACTION_LABELS.items():
+        n = int(counts.get(kind) or 0)
+        if n:
+            parts.append(f"{n} {one if n == 1 else many}")
+    return " · ".join(parts) if parts else "none in the trailing hour"
+
 
 def article_options(conn: psycopg.Connection, app_id: str) -> list[dict]:
     """Every article in the catalog, for the picker.
@@ -235,6 +260,10 @@ def article_detail(conn: psycopg.Connection, app_id: str, article_id: str) -> di
         row[k] = _num(row[k])
     row["engaged_seconds_1h"] = engaged_seconds(row["pings_1h"])
     row["interactions_1h"] = sum(row[c] for c in INTERACTION_COLS)
+    row["interactions_label"] = interaction_summary({
+        "like": row["likes_1h"], "bookmark": row["bookmarks_1h"],
+        "favorite": row["favorites_1h"], "share": row["shares_1h"],
+    })
     row["country_counts_1h"] = {k: int(v) for k, v in (row["country_counts_1h"] or {}).items()}
 
     # Peak trailing-hour views over the whole retained history: useful context

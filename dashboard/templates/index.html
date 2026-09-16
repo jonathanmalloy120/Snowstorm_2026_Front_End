@@ -118,7 +118,7 @@
       <div class="s">trailing hour · from page pings</div></div>
     <div class="tile"><div class="k">Interactions</div>
       <div class="v" data-k="social_total_1h">{{ overview.social_total_1h or 0 }}</div>
-      <div class="s">likes, bookmarks, favourites, shares</div></div>
+      <div class="s" data-social>{{ overview.social_label }}</div></div>
   </div>
 
   <div class="zone-head">
@@ -237,6 +237,8 @@ async function refresh(){
     }
     const eng = document.querySelector('[data-engaged]');
     if (eng) eng.textContent = d.engaged_label;
+    const soc = document.querySelector('[data-social]');
+    if (soc) soc.textContent = d.social_label;
 
     for (const [k, f] of Object.entries(d.figures)){
       const fig = JSON.parse(f);
