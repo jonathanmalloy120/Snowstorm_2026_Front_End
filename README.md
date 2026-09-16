@@ -257,7 +257,7 @@ is broken. To put data on it, open the live site and click around:
   charts.
 - **Use a VPN** if you want the map to show more than one country.
 
-The **Live from Signals** strip at the top moves first — within about 10
+The **Right now** strip at the top moves first — within about 10
 seconds. Everything else waits for the next snapshot (up to 60s) and then the
 page's own refresh (up to 30s), so give it ~90 seconds before concluding
 nothing happened. The over-time charts need several snapshots before there is a
