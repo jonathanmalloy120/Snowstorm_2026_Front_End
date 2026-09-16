@@ -103,7 +103,7 @@
         <select id="jump">
           <option value="">Jump to an article…</option>
           {% for o in options %}
-            <option value="{{ o.article_id }}">{{ o.title or o.article_id }}{% if o.views_1h %} — {{ o.views_1h }}/hr{% endif %}</option>
+            <option value="{{ o.article_id }}">{{ o.title or o.article_id }}</option>
           {% endfor %}
         </select>
       </div>
@@ -133,8 +133,8 @@
 
   <div class="live">
     <div class="live-head">
-      <span class="live-title"><span class="pulse" id="live-pulse"></span>Live from Signals</span>
-      <span class="live-meta">read directly — no snapshot in between · <span id="live-age">connecting…</span></span>
+      <span class="live-title"><span class="pulse" id="live-pulse"></span>Right now</span>
+      <span class="live-meta">read straight from Signals — no snapshot in between · <span id="live-age">connecting…</span></span>
     </div>
     <div class="live-nums">
       <div class="live-num"><b id="live-article_views_5m">–</b><span>article views · last 5 min</span></div>
@@ -145,8 +145,8 @@
 
   <div class="zone-head">
     <div class="zone-title">
-      <h2>Right now</h2>
-      <span class="why">current values from Signals, each at its own fixed window — not affected by the range control</span>
+      <h2>Last hour</h2>
+      <span class="why">from the most recent snapshot, each at its own fixed window — not affected by the range control</span>
     </div>
     <span class="badge fixed">Fixed windows</span>
   </div>
